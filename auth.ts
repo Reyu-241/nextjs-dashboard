@@ -7,16 +7,33 @@ import bcrypt from 'bcryptjs';
 import postgres from 'postgres';
  
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
- 
-// ...
+
+const CredentialsSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+});
+
+async function getUser(email: string): Promise<User | undefined> {
+  try {
+    const users = await sql<User[]>`
+      SELECT id, name, email, password
+      FROM users
+      WHERE email = ${email}
+      LIMIT 1
+    `;
+    return users[0];
+  } catch (error) {
+    console.error('Database Error:', error);
+    throw new Error('Failed to fetch user.');
+  }
+}
  
 export const { auth, signIn, signOut } = NextAuth({
   ...authConfig,
   providers: [
     Credentials({
       async authorize(credentials) {
-        // ...
- 
+        const parsedCredentials = CredentialsSchema.safeParse(credentials);
         if (parsedCredentials.success) {
           const { email, password } = parsedCredentials.data;
           const user = await getUser(email);
