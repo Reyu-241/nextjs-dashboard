@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import postgres from 'postgres';
 import { signIn } from '@/auth';
 import { AuthError } from 'next-auth';
+import { createClient } from '@/app/lib/supabase/server';
  
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
  
