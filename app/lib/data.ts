@@ -8,7 +8,8 @@ import {
   Revenue,
 } from './definitions';
 import { formatCurrency } from './utils';
-import { createClient } from '@/app/lib/supabase/server';
+import { createAdminClient } from '@/app/lib/supabase/admin';
+import { requireClinicUser } from './patients';
 
 
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
@@ -229,21 +230,28 @@ export type Patient = {
 };
 
 export async function fetchPatients(): Promise<Patient[]> {
-  const supabase = await createClient();
+  await requireClinicUser();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('patients')
     .select('id, user_id, full_name, phone, date_of_birth, created_at')
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Supabase error:', error);
+    console.error('Failed to fetch patients:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
     throw new Error('Failed to fetch patients.');
   }
   return data as Patient[];
 }
 
 export async function fetchPatientById(id: string): Promise<Patient | null> {
-  const supabase = await createClient();
+  await requireClinicUser();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('patients')
     .select('id, user_id, full_name, phone, date_of_birth, created_at')
@@ -251,7 +259,12 @@ export async function fetchPatientById(id: string): Promise<Patient | null> {
     .maybeSingle();
 
   if (error) {
-    console.error('Supabase error:', error);
+    console.error('Failed to fetch patient:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
     throw new Error('Failed to fetch patient.');
   }
   return (data as Patient | null) ?? null;

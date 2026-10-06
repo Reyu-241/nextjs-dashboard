@@ -2,6 +2,10 @@
 
 **Goal:** find your symptom and apply the fix. Row Level Security (RLS) causes most of these.
 
+**Patients page reports `permission denied for table patients`**
+- The app signs in with NextAuth, while the patients table uses Supabase's separate Auth identity. The page uses a server-only Supabase key after verifying the NextAuth session; it does not grant patient access to anonymous clients.
+- Apply `supabase/migrations/20261006010000_patients_shared_clinic_access.sql` to the Supabase project. The migration allows shared-clinic patient rows to have no Supabase Auth owner; only authenticated app server requests use the service-role key.
+
 **Redirect loop on /dashboard**
 - Cause: `proxy.ts` sends you to a login path it does not exempt, or a page uses `getSession()` while the proxy uses `getClaims()`, or the proxy returns a response without the refreshed cookies.
 - Fix: in `lib/supabase/proxy.ts` call `supabase.auth.getClaims()` straight after `createServerClient`, nothing in between. Exempt `/login` from the redirect. Return `supabaseResponse` as it is. Keep the starter's `matcher`. Check `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local` and in Vercel.

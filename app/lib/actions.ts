@@ -6,7 +6,8 @@ import { redirect } from 'next/navigation';
 import postgres from 'postgres';
 import { signIn } from '@/auth';
 import { AuthError } from 'next-auth';
-import { createClient } from '@/app/lib/supabase/server';
+import { createAdminClient } from '@/app/lib/supabase/admin';
+import { requireClinicUser } from './patients';
  
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
  
@@ -151,6 +152,7 @@ export type PatientState = {
 };
 
 export async function createPatient(prevState: PatientState, formData: FormData) {
+  await requireClinicUser();
   const validated = PatientSchema.safeParse({
     full_name: formData.get('full_name'),
     phone: formData.get('phone'),
@@ -164,15 +166,20 @@ export async function createPatient(prevState: PatientState, formData: FormData)
   }
   const { full_name, phone, date_of_birth } = validated.data;
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { error } = await supabase.from('patients').insert({
     full_name,
     phone: phone || null,
     date_of_birth: date_of_birth || null,
-    // user_id is not sent: the column default auth.uid() fills it
+    user_id: null,
   });
   if (error) {
-    console.error('Supabase error:', error);
+    console.error('Failed to create patient:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
     return { message: `Database error ${error.code}: failed to create patient.` };
   }
 
@@ -185,6 +192,7 @@ export async function updatePatient(
   prevState: PatientState,
   formData: FormData,
 ) {
+  await requireClinicUser();
   const validated = PatientSchema.safeParse({
     full_name: formData.get('full_name'),
     phone: formData.get('phone'),
@@ -198,13 +206,22 @@ export async function updatePatient(
   }
   const { full_name, phone, date_of_birth } = validated.data;
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { error } = await supabase
     .from('patients')
-    .update({ full_name, phone: phone || null, date_of_birth: date_of_birth || null })
+    .update({
+      full_name,
+      phone: phone || null,
+      date_of_birth: date_of_birth || null,
+    })
     .eq('id', id);
   if (error) {
-    console.error('Supabase error:', error);
+    console.error('Failed to update patient:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
     return { message: `Database error ${error.code}: failed to update patient.` };
   }
 
@@ -213,10 +230,16 @@ export async function updatePatient(
 }
 
 export async function deletePatient(id: string) {
-  const supabase = await createClient();
+  await requireClinicUser();
+  const supabase = createAdminClient();
   const { error } = await supabase.from('patients').delete().eq('id', id);
   if (error) {
-    console.error('Supabase error:', error);
+    console.error('Failed to delete patient:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
     throw new Error(`Database error ${error.code}: failed to delete patient.`);
   }
   revalidatePath('/dashboard/patients');
