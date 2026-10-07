@@ -514,3 +514,126 @@ export async function uploadPatientFile(patientId: string, formData: FormData) {
 
   revalidatePath(`/dashboard/patients/${patientId}/edit`);
 }
+
+const PublicBookingSchema = z.object({
+  full_name: z
+    .string()
+    .trim()
+    .min(2, 'Enter your full name.')
+    .max(120, 'Name must be 120 characters or fewer.'),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^[+()\d\s.-]{7,24}$/, 'Enter a valid phone number.')
+    .refine((value) => value.replace(/\D/g, '').length >= 7, 'Enter a valid phone number.'),
+  date_of_birth: z.string().refine((value) => {
+    if (value === '') return true;
+    const date = new Date(`${value}T00:00:00.000Z`);
+    return (
+      /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+      Number.isFinite(date.getTime()) &&
+      date.toISOString().slice(0, 10) === value &&
+      value <= new Date().toISOString().slice(0, 10)
+    );
+  }, 'Enter a valid date of birth that is not in the future.'),
+  starts_at: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, 'Choose a valid appointment time.')
+    .refine((value) => {
+      const date = new Date(`${value}:00+02:00`);
+      return Number.isFinite(date.getTime()) && date > new Date();
+    }, 'Choose a future appointment time.'),
+  website: z.string(),
+});
+
+export type PublicBookingState = {
+  errors?: {
+    full_name?: string[];
+    phone?: string[];
+    date_of_birth?: string[];
+    starts_at?: string[];
+  };
+  message?: string | null;
+  success?: boolean;
+};
+
+export async function bookAppointment(
+  _prevState: PublicBookingState,
+  formData: FormData,
+): Promise<PublicBookingState> {
+  const validated = PublicBookingSchema.safeParse({
+    full_name: formData.get('full_name'),
+    phone: formData.get('phone'),
+    date_of_birth: formData.get('date_of_birth'),
+    starts_at: formData.get('starts_at'),
+    website: formData.get('website'),
+  });
+
+  if (!validated.success) {
+    return {
+      errors: validated.error.flatten().fieldErrors,
+      message: 'Check the highlighted fields and try again.',
+    };
+  }
+
+  if (validated.data.website !== '') {
+    return { message: 'Unable to submit this booking.' };
+  }
+
+  const supabase = createAdminClient();
+  const { data: patient, error: patientError } = await supabase
+    .from('patients')
+    .insert({
+      full_name: validated.data.full_name,
+      phone: validated.data.phone,
+      date_of_birth: validated.data.date_of_birth || null,
+      user_id: null,
+    })
+    .select('id')
+    .single();
+
+  if (patientError) {
+    console.error('Public appointment booking could not create patient:', {
+      code: patientError.code,
+      message: patientError.message,
+      details: patientError.details,
+      hint: patientError.hint,
+    });
+    return { message: `Unable to save your details (database error ${patientError.code}).` };
+  }
+
+  const startsAt = new Date(`${validated.data.starts_at}:00+02:00`).toISOString();
+  const { error: appointmentError } = await supabase.from('appointments').insert({
+    patient_id: patient.id,
+    starts_at: startsAt,
+    status: 'booked',
+    user_id: null,
+  });
+
+  if (appointmentError) {
+    console.error('Public appointment booking could not create appointment:', {
+      code: appointmentError.code,
+      message: appointmentError.message,
+      details: appointmentError.details,
+      hint: appointmentError.hint,
+    });
+    const { error: cleanupError } = await supabase
+      .from('patients')
+      .delete()
+      .eq('id', patient.id);
+    if (cleanupError) {
+      console.error('Could not remove patient after failed public booking:', {
+        code: cleanupError.code,
+        message: cleanupError.message,
+      });
+    }
+    return { message: `Unable to book this appointment (database error ${appointmentError.code}).` };
+  }
+
+  revalidatePath('/dashboard');
+  revalidatePath('/dashboard/appointments');
+  return {
+    success: true,
+    message: 'Your appointment is booked. The clinic will contact you if anything needs to change.',
+  };
+}
