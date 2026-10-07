@@ -1,6 +1,7 @@
 import { fetchPatients } from '@/app/lib/data';
 import { CreatePatient, UpdatePatient, DeletePatient } from '@/app/ui/patients/buttons';
 import { lusitana } from '@/app/ui/fonts';
+import { RefreshOnChange } from '@/app/ui/refresh-on-change'
 
 export default async function Page() {
   const patients = await fetchPatients();

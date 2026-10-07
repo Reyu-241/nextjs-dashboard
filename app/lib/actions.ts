@@ -8,6 +8,7 @@ import { signIn } from '@/auth';
 import { AuthError } from 'next-auth';
 import { createAdminClient } from '@/app/lib/supabase/admin';
 import { requireClinicUser } from './patients';
+
  
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
  
@@ -475,4 +476,41 @@ export async function deleteTreatment(id: string) {
     throw new Error(`Database error ${error.code}: failed to delete treatment.`);
   }
   revalidatePath('/dashboard/treatments');
+}
+
+export async function uploadPatientFile(patientId: string, formData: FormData) {
+  await requireClinicUser();
+  const file = formData.get('file');
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error('Choose a non-empty file to upload.');
+  }
+
+  const supabase = createAdminClient();
+  const path = `${patientId}/${crypto.randomUUID()}-${file.name}`;
+  const { data, error } = await supabase.storage
+    .from('patient-files')
+    .upload(path, file);
+  if (error) {
+    console.error('Failed to upload patient file:', {
+      code: error.statusCode,
+      message: error.message,
+    });
+    throw new Error(`Failed to upload patient file: ${error.message}`);
+  }
+
+  const { error: updateError } = await supabase
+    .from('patients')
+    .update({ file_path: data.path })
+    .eq('id', patientId);
+  if (updateError) {
+    console.error('Failed to save patient file path:', {
+      code: updateError.code,
+      message: updateError.message,
+      details: updateError.details,
+      hint: updateError.hint,
+    });
+    throw new Error(`Database error ${updateError.code}: failed to save patient file path.`);
+  }
+
+  revalidatePath(`/dashboard/patients/${patientId}/edit`);
 }

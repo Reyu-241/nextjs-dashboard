@@ -1,49 +1,38 @@
-import { fetchAppointments, fetchPatients } from '@/app/lib/data';
-import { CreateAppointment, UpdateAppointment, DeleteAppointment } from '@/app/ui/appointments/buttons';
-import { lusitana } from '@/app/ui/fonts';
+import Link from 'next/link'
+import { fetchAppointments, fetchPatients } from '@/app/lib/data'
+import { formatSA } from '@/app/lib/time'
+import { deleteAppointment } from '@/app/lib/actions'
 
 export default async function Page() {
-  const [appointments, patients] = await Promise.all([fetchAppointments(), fetchPatients()]);
-  const patientMap = new Map(patients.map((patient) => [patient.id, patient.full_name]));
-
+  const [rows, patients] = await Promise.all([fetchAppointments(), fetchPatients()])
+  const patientNames = new Map(patients.map((patient) => [patient.id, patient.full_name]))
   return (
-    <div className="w-full">
-      <div className="flex w-full items-center justify-between">
-        <h1 className={`${lusitana.className} text-2xl`}>Appointments</h1>
-        <CreateAppointment />
-      </div>
-
-      {appointments.length === 0 ? (
-        <p className="mt-6 text-sm text-gray-500">No appointments yet. Add the first one.</p>
+    <main className="p-6">
+      <h1 className="text-2xl font-bold">Appointments</h1>
+      <Link href="/dashboard/appointments/create" className="underline">New appointment</Link>
+      {rows.length === 0 ? (
+        <p className="mt-4">No appointments yet.</p>
       ) : (
-        <table className="mt-6 min-w-full text-gray-900">
-          <thead className="text-left text-sm font-normal">
-            <tr>
-              <th className="px-4 py-3 font-medium">Patient</th>
-              <th className="px-3 py-3 font-medium">Starts</th>
-              <th className="px-3 py-3 font-medium">Status</th>
-              <th className="py-3 pl-6 pr-3"><span className="sr-only">Edit</span></th>
-            </tr>
-          </thead>
-          <tbody className="bg-white">
-            {appointments.map((appointment) => (
-              <tr key={appointment.id} className="border-b text-sm">
-                <td className="whitespace-nowrap px-4 py-3">{patientMap.get(appointment.patient_id) ?? 'Unknown patient'}</td>
-                <td className="whitespace-nowrap px-3 py-3">
-                  {new Date(appointment.starts_at).toLocaleString()}
-                </td>
-                <td className="whitespace-nowrap px-3 py-3">{appointment.status}</td>
-                <td className="whitespace-nowrap py-3 pl-6 pr-3">
-                  <div className="flex justify-end gap-3">
-                    <UpdateAppointment id={appointment.id} />
-                    <DeleteAppointment id={appointment.id} />
-                  </div>
-                </td>
-              </tr>
-            ))}
+        <table className="mt-4 w-full text-sm">
+          <thead><tr><th>Patient</th><th>Starts</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            {rows.map((a) => {
+              const remove = deleteAppointment.bind(null, a.id)
+              return (
+                <tr key={a.id}>
+                  <td>{patientNames.get(a.patient_id) ?? 'Unknown'}</td>
+                  <td>{formatSA(a.starts_at)}</td>
+                  <td>{a.status}</td>
+                  <td>
+                    <Link href={`/dashboard/appointments/${a.id}/edit`}>Edit</Link>{' '}
+                    <form action={remove} className="inline"><button type="submit">Delete</button></form>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       )}
-    </div>
-  );
+    </main>
+  )
 }

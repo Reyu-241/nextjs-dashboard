@@ -11,7 +11,6 @@ import { formatCurrency } from './utils';
 import { createAdminClient } from '@/app/lib/supabase/admin';
 import { requireClinicUser } from './patients';
 
-
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
 
 export async function fetchRevenue() {
@@ -226,6 +225,7 @@ export type Patient = {
   full_name: string;
   phone: string | null;
   date_of_birth: string | null;
+  file_path: string | null;
   created_at: string;
 };
 
@@ -266,7 +266,7 @@ export async function fetchPatients(): Promise<Patient[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('patients')
-    .select('id, user_id, full_name, phone, date_of_birth, created_at')
+    .select('id, user_id, full_name, phone, date_of_birth, file_path, created_at')
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -286,7 +286,7 @@ export async function fetchPatientById(id: string): Promise<Patient | null> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('patients')
-    .select('id, user_id, full_name, phone, date_of_birth, created_at')
+    .select('id, user_id, full_name, phone, date_of_birth, file_path, created_at')
     .eq('id', id)
     .maybeSingle();
 
