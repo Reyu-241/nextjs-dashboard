@@ -222,12 +222,44 @@ export async function fetchFilteredCustomers(query: string) {
 
 export type Patient = {
   id: string;
-  user_id: string;
+  user_id: string | null;
   full_name: string;
   phone: string | null;
   date_of_birth: string | null;
   created_at: string;
 };
+
+export type Appointment = {
+  id: string;
+  user_id: string | null;
+  patient_id: string;
+  starts_at: string;
+  status: 'booked' | 'done' | 'no_show';
+  created_at: string;
+};
+
+export type Treatment = {
+  id: string;
+  user_id: string | null;
+  appointment_id: string;
+  procedure: string;
+  fee_cents: number;
+  created_at: string;
+};
+
+function isMissingTableError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+
+  const code = String(error.code ?? '').toUpperCase();
+  const message = String(error.message ?? '').toLowerCase();
+
+  return (
+    code === '42P01' ||
+    code === 'PGRST205' ||
+    message.includes('does not exist') ||
+    message.includes('relation') && message.includes('does not exist')
+  );
+}
 
 export async function fetchPatients(): Promise<Patient[]> {
   await requireClinicUser();
@@ -268,4 +300,168 @@ export async function fetchPatientById(id: string): Promise<Patient | null> {
     throw new Error('Failed to fetch patient.');
   }
   return (data as Patient | null) ?? null;
+}
+
+export async function fetchAppointments(): Promise<Appointment[]> {
+  await requireClinicUser();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('id, user_id, patient_id, starts_at, status, created_at')
+    .order('starts_at', { ascending: false });
+
+  if (error) {
+    if (isMissingTableError(error)) {
+      console.warn('Appointments table is not yet created in Supabase. Returning empty list until migration is applied.');
+      return [];
+    }
+
+    console.error('Failed to fetch appointments:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    throw new Error('Failed to fetch appointments.');
+  }
+
+  return (data ?? []) as Appointment[];
+}
+
+export async function fetchTreatments(): Promise<Treatment[]> {
+  await requireClinicUser();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('treatments')
+    .select('id, user_id, appointment_id, procedure, fee_cents, created_at')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    if (isMissingTableError(error)) {
+      console.warn('Treatments table is not yet created in Supabase. Returning empty list until migration is applied.');
+      return [];
+    }
+
+    console.error('Failed to fetch treatments:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    throw new Error('Failed to fetch treatments.');
+  }
+
+  return (data ?? []) as Treatment[];
+}
+
+export async function fetchAppointmentById(id: string): Promise<Appointment | null> {
+  await requireClinicUser();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('id, user_id, patient_id, starts_at, status, created_at')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingTableError(error)) {
+      console.warn('Appointments table is not yet created in Supabase. Returning null for this record.');
+      return null;
+    }
+
+    console.error('Failed to fetch appointment:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    throw new Error('Failed to fetch appointment.');
+  }
+
+  return (data as Appointment | null) ?? null;
+}
+
+export async function fetchTreatmentById(id: string): Promise<Treatment | null> {
+  await requireClinicUser();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('treatments')
+    .select('id, user_id, appointment_id, procedure, fee_cents, created_at')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingTableError(error)) {
+      console.warn('Treatments table is not yet created in Supabase. Returning null for this record.');
+      return null;
+    }
+
+    console.error('Failed to fetch treatment:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    throw new Error('Failed to fetch treatment.');
+  }
+
+  return (data as Treatment | null) ?? null;
+}
+
+export type ClinicSummary = {
+  patientCount: number;
+  appointmentCount: number;
+  treatmentCount: number;
+  upcomingAppointments: Array<{
+    id: string;
+    starts_at: string;
+    status: 'booked' | 'done' | 'no_show';
+    patient_name: string;
+    patient_phone: string | null;
+  }>;
+};
+
+export async function fetchClinicSummary(): Promise<ClinicSummary> {
+  await requireClinicUser();
+  const supabase = createAdminClient();
+
+  const [patientsResult, appointmentsResult, treatmentsResult, upcomingResult] = await Promise.all([
+    supabase.from('patients').select('id', { count: 'exact', head: true }),
+    supabase.from('appointments').select('id', { count: 'exact', head: true }),
+    supabase.from('treatments').select('id', { count: 'exact', head: true }),
+    supabase
+      .from('appointments')
+      .select('id, starts_at, status, patient:patient_id(full_name, phone)')
+      .gte('starts_at', new Date().toISOString())
+      .order('starts_at', { ascending: true })
+      .limit(5),
+  ]);
+
+  if (isMissingTableError(patientsResult.error) || isMissingTableError(appointmentsResult.error) || isMissingTableError(treatmentsResult.error) || isMissingTableError(upcomingResult.error)) {
+    return {
+      patientCount: 0,
+      appointmentCount: 0,
+      treatmentCount: 0,
+      upcomingAppointments: [],
+    };
+  }
+
+  const patientCount = patientsResult.count ?? 0;
+  const appointmentCount = appointmentsResult.count ?? 0;
+  const treatmentCount = treatmentsResult.count ?? 0;
+
+  const upcomingAppointments = (upcomingResult.data ?? []).map((row: any) => ({
+    id: row.id,
+    starts_at: row.starts_at,
+    status: row.status,
+    patient_name: row.patient?.full_name ?? 'Unknown patient',
+    patient_phone: row.patient?.phone ?? null,
+  }));
+
+  return {
+    patientCount,
+    appointmentCount,
+    treatmentCount,
+    upcomingAppointments,
+  };
 }

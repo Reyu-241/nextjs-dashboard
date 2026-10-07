@@ -244,3 +244,235 @@ export async function deletePatient(id: string) {
   }
   revalidatePath('/dashboard/patients');
 }
+
+const AppointmentSchema = z.object({
+  patient_id: z.string().min(1, { message: 'Please select a patient.' }),
+  starts_at: z.string().min(1, { message: 'Please choose a start time.' }),
+  status: z.enum(['booked', 'done', 'no_show'], {
+    invalid_type_error: 'Please select a valid appointment status.',
+  }),
+});
+
+export type AppointmentState = {
+  errors?: {
+    patient_id?: string[];
+    starts_at?: string[];
+    status?: string[];
+  };
+  message?: string | null;
+};
+
+export async function createAppointment(
+  prevState: AppointmentState,
+  formData: FormData,
+) {
+  await requireClinicUser();
+  const validated = AppointmentSchema.safeParse({
+    patient_id: formData.get('patient_id'),
+    starts_at: formData.get('starts_at'),
+    status: formData.get('status'),
+  });
+
+  if (!validated.success) {
+    return {
+      errors: validated.error.flatten().fieldErrors,
+      message: 'Missing fields. Failed to create appointment.',
+    };
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase.from('appointments').insert({
+    patient_id: validated.data.patient_id,
+    starts_at: validated.data.starts_at,
+    status: validated.data.status,
+    user_id: null,
+  });
+
+  if (error) {
+    console.error('Failed to create appointment:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    return { message: `Database error ${error.code}: failed to create appointment.` };
+  }
+
+  revalidatePath('/dashboard/appointments');
+  redirect('/dashboard/appointments');
+}
+
+export async function updateAppointment(
+  id: string,
+  prevState: AppointmentState,
+  formData: FormData,
+) {
+  await requireClinicUser();
+  const validated = AppointmentSchema.safeParse({
+    patient_id: formData.get('patient_id'),
+    starts_at: formData.get('starts_at'),
+    status: formData.get('status'),
+  });
+
+  if (!validated.success) {
+    return {
+      errors: validated.error.flatten().fieldErrors,
+      message: 'Missing fields. Failed to update appointment.',
+    };
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from('appointments')
+    .update({
+      patient_id: validated.data.patient_id,
+      starts_at: validated.data.starts_at,
+      status: validated.data.status,
+    })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Failed to update appointment:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    return { message: `Database error ${error.code}: failed to update appointment.` };
+  }
+
+  revalidatePath('/dashboard/appointments');
+  redirect('/dashboard/appointments');
+}
+
+export async function deleteAppointment(id: string) {
+  await requireClinicUser();
+  const supabase = createAdminClient();
+  const { error } = await supabase.from('appointments').delete().eq('id', id);
+  if (error) {
+    console.error('Failed to delete appointment:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    throw new Error(`Database error ${error.code}: failed to delete appointment.`);
+  }
+  revalidatePath('/dashboard/appointments');
+}
+
+const TreatmentSchema = z.object({
+  appointment_id: z.string().min(1, { message: 'Please select an appointment.' }),
+  procedure: z.string().min(1, { message: 'Please enter a procedure name.' }),
+  fee_cents: z.coerce.number().int().nonnegative({
+    message: 'Please enter a valid fee in cents.',
+  }),
+});
+
+export type TreatmentState = {
+  errors?: {
+    appointment_id?: string[];
+    procedure?: string[];
+    fee_cents?: string[];
+  };
+  message?: string | null;
+};
+
+export async function createTreatment(
+  prevState: TreatmentState,
+  formData: FormData,
+) {
+  await requireClinicUser();
+  const validated = TreatmentSchema.safeParse({
+    appointment_id: formData.get('appointment_id'),
+    procedure: formData.get('procedure'),
+    fee_cents: formData.get('fee_cents'),
+  });
+
+  if (!validated.success) {
+    return {
+      errors: validated.error.flatten().fieldErrors,
+      message: 'Missing fields. Failed to create treatment.',
+    };
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase.from('treatments').insert({
+    appointment_id: validated.data.appointment_id,
+    procedure: validated.data.procedure,
+    fee_cents: validated.data.fee_cents,
+    user_id: null,
+  });
+
+  if (error) {
+    console.error('Failed to create treatment:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    return { message: `Database error ${error.code}: failed to create treatment.` };
+  }
+
+  revalidatePath('/dashboard/treatments');
+  redirect('/dashboard/treatments');
+}
+
+export async function updateTreatment(
+  id: string,
+  prevState: TreatmentState,
+  formData: FormData,
+) {
+  await requireClinicUser();
+  const validated = TreatmentSchema.safeParse({
+    appointment_id: formData.get('appointment_id'),
+    procedure: formData.get('procedure'),
+    fee_cents: formData.get('fee_cents'),
+  });
+
+  if (!validated.success) {
+    return {
+      errors: validated.error.flatten().fieldErrors,
+      message: 'Missing fields. Failed to update treatment.',
+    };
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from('treatments')
+    .update({
+      appointment_id: validated.data.appointment_id,
+      procedure: validated.data.procedure,
+      fee_cents: validated.data.fee_cents,
+    })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Failed to update treatment:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    return { message: `Database error ${error.code}: failed to update treatment.` };
+  }
+
+  revalidatePath('/dashboard/treatments');
+  redirect('/dashboard/treatments');
+}
+
+export async function deleteTreatment(id: string) {
+  await requireClinicUser();
+  const supabase = createAdminClient();
+  const { error } = await supabase.from('treatments').delete().eq('id', id);
+  if (error) {
+    console.error('Failed to delete treatment:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    throw new Error(`Database error ${error.code}: failed to delete treatment.`);
+  }
+  revalidatePath('/dashboard/treatments');
+}

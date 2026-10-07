@@ -86,3 +86,23 @@ export type InvoiceForm = {
   amount: number;
   status: 'pending' | 'paid';
 };
+
+export type AppointmentStatus = 'booked' | 'done' | 'no_show';
+
+export type Appointment = {
+  id: string;
+  user_id: string | null;
+  patient_id: string;
+  starts_at: string;
+  status: AppointmentStatus;
+  created_at: string;
+};
+
+export type Treatment = {
+  id: string;
+  user_id: string | null;
+  appointment_id: string;
+  procedure: string;
+  fee_cents: number;
+  created_at: string;
+};
