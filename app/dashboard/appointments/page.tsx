@@ -14,7 +14,7 @@ export default async function Page() {
         <p className="mt-4">No appointments yet.</p>
       ) : (
         <table className="mt-4 w-full text-sm">
-          <thead><tr><th>Patient</th><th>Starts</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Patient</th><th>Starts</th><th>Professional</th><th>Appointment</th><th>Payment</th><th>Status</th><th></th></tr></thead>
           <tbody>
             {rows.map((a) => {
               const remove = deleteAppointment.bind(null, a.id)
@@ -22,6 +22,9 @@ export default async function Page() {
                 <tr key={a.id}>
                   <td>{patientNames.get(a.patient_id) ?? 'Unknown'}</td>
                   <td>{formatSA(a.starts_at)}</td>
+                  <td>{a.provider_name ?? 'Not specified'}</td>
+                  <td>{a.appointment_type === 'consultation_with_procedure' ? 'Consultation with procedure' : a.appointment_type === 'consultation' ? 'Consultation without procedure' : 'Not specified'}</td>
+                  <td>{a.payment_method?.replace('_', ' ') ?? 'Not specified'}</td>
                   <td>{a.status}</td>
                   <td>
                     <Link href={`/dashboard/appointments/${a.id}/edit`}>Edit</Link>{' '}

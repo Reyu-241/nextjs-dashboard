@@ -88,6 +88,9 @@ export type InvoiceForm = {
 };
 
 export type AppointmentStatus = 'booked' | 'done' | 'no_show';
+export type ProviderType = 'general_practitioner' | 'dentist' | 'nurse';
+export type AppointmentType = 'consultation' | 'consultation_with_procedure';
+export type PaymentMethod = 'medical_aid' | 'private' | 'insurance';
 
 export type Appointment = {
   id: string;
@@ -95,6 +98,10 @@ export type Appointment = {
   patient_id: string;
   starts_at: string;
   status: AppointmentStatus;
+  provider_type: ProviderType | null;
+  provider_name: string | null;
+  appointment_type: AppointmentType | null;
+  payment_method: PaymentMethod | null;
   created_at: string;
 };
 

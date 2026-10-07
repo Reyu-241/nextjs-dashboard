@@ -543,7 +543,34 @@ const PublicBookingSchema = z.object({
       const date = new Date(`${value}:00+02:00`);
       return Number.isFinite(date.getTime()) && date > new Date();
     }, 'Choose a future appointment time.'),
+  provider_type: z.enum(['general_practitioner', 'dentist', 'nurse'], {
+    invalid_type_error: 'Choose a healthcare professional type.',
+  }),
+  provider_name: z.enum([
+    'General Practitioner 1', 'General Practitioner 2', 'General Practitioner 3',
+    'Dentist 1', 'Dentist 2', 'Dentist 3',
+    'Nurse 1', 'Nurse 2', 'Nurse 3',
+  ], { invalid_type_error: 'Choose a professional.' }),
+  appointment_type: z.enum(['consultation', 'consultation_with_procedure'], {
+    invalid_type_error: 'Choose an appointment type.',
+  }),
+  payment_method: z.enum(['medical_aid', 'private', 'insurance'], {
+    invalid_type_error: 'Choose a payment method.',
+  }),
   website: z.string(),
+}).superRefine((booking, context) => {
+  const validProviders = {
+    general_practitioner: ['General Practitioner 1', 'General Practitioner 2', 'General Practitioner 3'],
+    dentist: ['Dentist 1', 'Dentist 2', 'Dentist 3'],
+    nurse: ['Nurse 1', 'Nurse 2', 'Nurse 3'],
+  };
+  if (!validProviders[booking.provider_type].includes(booking.provider_name)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['provider_name'],
+      message: 'Choose a professional from the selected category.',
+    });
+  }
 });
 
 export type PublicBookingState = {
@@ -552,6 +579,10 @@ export type PublicBookingState = {
     phone?: string[];
     date_of_birth?: string[];
     starts_at?: string[];
+    provider_type?: string[];
+    provider_name?: string[];
+    appointment_type?: string[];
+    payment_method?: string[];
   };
   message?: string | null;
   success?: boolean;
@@ -566,6 +597,10 @@ export async function bookAppointment(
     phone: formData.get('phone'),
     date_of_birth: formData.get('date_of_birth'),
     starts_at: formData.get('starts_at'),
+    provider_type: formData.get('provider_type'),
+    provider_name: formData.get('provider_name'),
+    appointment_type: formData.get('appointment_type'),
+    payment_method: formData.get('payment_method'),
     website: formData.get('website'),
   });
 
@@ -608,6 +643,10 @@ export async function bookAppointment(
     starts_at: startsAt,
     status: 'booked',
     user_id: null,
+    provider_type: validated.data.provider_type,
+    provider_name: validated.data.provider_name,
+    appointment_type: validated.data.appointment_type,
+    payment_method: validated.data.payment_method,
   });
 
   if (appointmentError) {

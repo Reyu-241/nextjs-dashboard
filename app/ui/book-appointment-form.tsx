@@ -1,14 +1,21 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { ArrowRightIcon, CalendarDaysIcon } from '@heroicons/react/24/outline';
 import { bookAppointment, type PublicBookingState } from '@/app/lib/actions';
 import { Button } from '@/app/ui/button';
 
+const providersByType = {
+  general_practitioner: ['General Practitioner 1', 'General Practitioner 2', 'General Practitioner 3'],
+  dentist: ['Dentist 1', 'Dentist 2', 'Dentist 3'],
+  nurse: ['Nurse 1', 'Nurse 2', 'Nurse 3'],
+} as const;
+
 export default function BookAppointmentForm() {
   const initialState: PublicBookingState = { message: null, errors: {} };
   const [state, formAction] = useActionState(bookAppointment, initialState);
+  const [providerType, setProviderType] = useState<keyof typeof providersByType>('general_practitioner');
 
   if (state.success) {
     return (
@@ -103,6 +110,99 @@ export default function BookAppointmentForm() {
         <p className="mt-1 text-xs text-gray-500">Times are shown in South African time (SAST).</p>
         <div id="starts_at-error" aria-live="polite">
           {state.errors?.starts_at?.map((error) => (
+            <p className="mt-1 text-sm text-red-600" key={error}>{error}</p>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="provider_type" className="mb-2 block text-sm font-medium text-gray-900">
+          Healthcare professional
+        </label>
+        <select
+          id="provider_type"
+          name="provider_type"
+          required
+          value={providerType}
+          onChange={(event) => setProviderType(event.target.value as keyof typeof providersByType)}
+          className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+          aria-describedby="provider_type-error"
+        >
+          <option value="general_practitioner">General practitioner</option>
+          <option value="dentist">Dentist</option>
+          <option value="nurse">Nurse</option>
+        </select>
+        <div id="provider_type-error" aria-live="polite">
+          {state.errors?.provider_type?.map((error) => (
+            <p className="mt-1 text-sm text-red-600" key={error}>{error}</p>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="provider_name" className="mb-2 block text-sm font-medium text-gray-900">
+          Choose a professional
+        </label>
+        <select
+          id="provider_name"
+          name="provider_name"
+          required
+          defaultValue={providersByType[providerType][0]}
+          key={providerType}
+          className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+          aria-describedby="provider_name-error"
+        >
+          {providersByType[providerType].map((provider) => (
+            <option key={provider} value={provider}>{provider}</option>
+          ))}
+        </select>
+        <div id="provider_name-error" aria-live="polite">
+          {state.errors?.provider_name?.map((error) => (
+            <p className="mt-1 text-sm text-red-600" key={error}>{error}</p>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="appointment_type" className="mb-2 block text-sm font-medium text-gray-900">
+          Appointment type
+        </label>
+        <select
+          id="appointment_type"
+          name="appointment_type"
+          required
+          defaultValue="consultation"
+          className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+          aria-describedby="appointment_type-error"
+        >
+          <option value="consultation">Consultation without procedure</option>
+          <option value="consultation_with_procedure">Consultation with procedure</option>
+        </select>
+        <div id="appointment_type-error" aria-live="polite">
+          {state.errors?.appointment_type?.map((error) => (
+            <p className="mt-1 text-sm text-red-600" key={error}>{error}</p>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="payment_method" className="mb-2 block text-sm font-medium text-gray-900">
+          Payment method
+        </label>
+        <select
+          id="payment_method"
+          name="payment_method"
+          required
+          defaultValue="private"
+          className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+          aria-describedby="payment_method-error"
+        >
+          <option value="medical_aid">Medical aid</option>
+          <option value="private">Private</option>
+          <option value="insurance">Insurance</option>
+        </select>
+        <div id="payment_method-error" aria-live="polite">
+          {state.errors?.payment_method?.map((error) => (
             <p className="mt-1 text-sm text-red-600" key={error}>{error}</p>
           ))}
         </div>

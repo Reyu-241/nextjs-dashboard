@@ -235,6 +235,10 @@ export type Appointment = {
   patient_id: string;
   starts_at: string;
   status: 'booked' | 'done' | 'no_show';
+  provider_type: 'general_practitioner' | 'dentist' | 'nurse' | null;
+  provider_name: string | null;
+  appointment_type: 'consultation' | 'consultation_with_procedure' | null;
+  payment_method: 'medical_aid' | 'private' | 'insurance' | null;
   created_at: string;
 };
 
@@ -307,7 +311,7 @@ export async function fetchAppointments(): Promise<Appointment[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('appointments')
-    .select('id, user_id, patient_id, starts_at, status, created_at')
+    .select('id, user_id, patient_id, starts_at, status, provider_type, provider_name, appointment_type, payment_method, created_at')
     .order('starts_at', { ascending: false });
 
   if (error) {
@@ -359,7 +363,7 @@ export async function fetchAppointmentById(id: string): Promise<Appointment | nu
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('appointments')
-    .select('id, user_id, patient_id, starts_at, status, created_at')
+    .select('id, user_id, patient_id, starts_at, status, provider_type, provider_name, appointment_type, payment_method, created_at')
     .eq('id', id)
     .maybeSingle();
 
