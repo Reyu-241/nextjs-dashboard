@@ -1,6 +1,12 @@
 import Link from 'next/link';
-import { fetchClinicSummary } from '@/app/lib/data';
+import {
+  fetchAppointmentStatusThisMonth,
+  fetchClinicSummary,
+  fetchPatientsPerMonth,
+} from '@/app/lib/data';
 import { lusitana } from '@/app/ui/fonts';
+import PatientsChart from '@/app/ui/dashboard/patients-chart';
+import StatusDonut from '@/app/ui/dashboard/status-donut';
 
 function SummaryCard({
   title,
@@ -21,12 +27,17 @@ function SummaryCard({
 }
 
 export default async function Page() {
-  const { patientCount, appointmentCount, treatmentCount, upcomingAppointments } = await fetchClinicSummary();
+  const [summary, perMonth, statusRows] = await Promise.all([
+    fetchClinicSummary(),
+    fetchPatientsPerMonth(),
+    fetchAppointmentStatusThisMonth(),
+  ]);
+  const { patientCount, appointmentCount, treatmentCount, upcomingAppointments } = summary;
 
   return (
-    <main>
+    <main className="p-6">
       <h1 className={`${lusitana.className} mb-6 text-xl md:text-2xl`}>
-        Clinic dashboard
+        Dashboard
       </h1>
 
       <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
@@ -34,6 +45,21 @@ export default async function Page() {
         <SummaryCard title="Appointments" value={appointmentCount} detail="All scheduled visits" />
         <SummaryCard title="Treatments" value={treatmentCount} detail="Completed services logged" />
         <SummaryCard title="Upcoming" value={upcomingAppointments.length} detail="Visits in the next window" />
+      </div>
+
+      <div className="mt-6 grid gap-6 md:grid-cols-2">
+        <section className="rounded-md border p-4">
+          <h2 className="font-semibold">
+            Is the practice growing? New patients per month (last 6 months)
+          </h2>
+          <PatientsChart rows={perMonth} />
+        </section>
+        <section className="rounded-md border p-4">
+          <h2 className="font-semibold">
+            What share of this month&apos;s appointments are no-shows?
+          </h2>
+          <StatusDonut rows={statusRows} />
+        </section>
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">

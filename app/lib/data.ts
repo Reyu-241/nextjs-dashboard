@@ -9,6 +9,7 @@ import {
 } from './definitions';
 import { formatCurrency } from './utils';
 import { createAdminClient } from '@/app/lib/supabase/admin';
+import { createClient } from '@/app/lib/supabase/server';
 import { requireClinicUser } from './patients';
 
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
@@ -468,4 +469,35 @@ export async function fetchClinicSummary(): Promise<ClinicSummary> {
     treatmentCount,
     upcomingAppointments,
   };
+}
+
+export interface StatusRow {
+  status: 'booked' | 'done' | 'no_show'
+  total: number
+}
+
+export interface PatientsPerMonthRow {
+  label: string
+  new_patients: number
+}
+
+export async function fetchPatientsPerMonth(): Promise<PatientsPerMonthRow[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('patients_per_month')
+    .select('label, new_patients')
+    .order('month_start', { ascending: true })
+
+  if (error) throw new Error(error.message)
+  return (data ?? []) as PatientsPerMonthRow[]
+}
+
+export async function fetchAppointmentStatusThisMonth(): Promise<StatusRow[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('appointment_status_this_month')
+    .select('status, total')
+
+  if (error) throw new Error(error.message)
+  return (data ?? []) as StatusRow[]
 }
