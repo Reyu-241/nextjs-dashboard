@@ -9,7 +9,6 @@ import {
 } from './definitions';
 import { formatCurrency } from './utils';
 import { createAdminClient } from '@/app/lib/supabase/admin';
-import { createClient } from '@/app/lib/supabase/server';
 import { requireClinicUser } from './patients';
 
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
@@ -482,7 +481,8 @@ export interface PatientsPerMonthRow {
 }
 
 export async function fetchPatientsPerMonth(): Promise<PatientsPerMonthRow[]> {
-  const supabase = await createClient()
+  await requireClinicUser()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('patients_per_month')
     .select('label, new_patients')
@@ -493,7 +493,8 @@ export async function fetchPatientsPerMonth(): Promise<PatientsPerMonthRow[]> {
 }
 
 export async function fetchAppointmentStatusThisMonth(): Promise<StatusRow[]> {
-  const supabase = await createClient()
+  await requireClinicUser()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('appointment_status_this_month')
     .select('status, total')
