@@ -172,7 +172,6 @@ export async function createPatient(prevState: PatientState, formData: FormData)
     full_name,
     phone: phone || null,
     date_of_birth: date_of_birth || null,
-    user_id: null,
   });
   if (error) {
     console.error('Failed to create patient:', {
@@ -622,7 +621,6 @@ export async function bookAppointment(
       full_name: validated.data.full_name,
       phone: validated.data.phone,
       date_of_birth: validated.data.date_of_birth || null,
-      user_id: null,
     })
     .select('id')
     .single();

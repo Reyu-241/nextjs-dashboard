@@ -221,7 +221,7 @@ export async function fetchFilteredCustomers(query: string) {
 
 export type Patient = {
   id: string;
-  user_id: string | null;
+  user_id: string;
   full_name: string;
   phone: string | null;
   date_of_birth: string | null;
