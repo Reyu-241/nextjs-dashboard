@@ -3,7 +3,7 @@ import { requireClinicUser } from '@/app/lib/patients';
 import { lusitana } from '@/app/ui/fonts';
 
 export default async function Page() {
-  await requireClinicUser();
+  const ownerId = await requireClinicUser();
   const supabase = createAdminClient();
   const start = new Date();
   const end = new Date();
@@ -12,6 +12,7 @@ export default async function Page() {
   const { data, error } = await supabase
     .from('appointments')
     .select('id, starts_at, status, patient:patient_id(full_name, phone)')
+    .eq('owner_id', ownerId)
     .gte('starts_at', start.toISOString())
     .lt('starts_at', end.toISOString())
     .order('starts_at', { ascending: true });

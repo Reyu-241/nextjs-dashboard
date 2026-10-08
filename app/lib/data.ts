@@ -222,6 +222,7 @@ export async function fetchFilteredCustomers(query: string) {
 export type Patient = {
   id: string;
   user_id: string;
+  owner_id: string;
   full_name: string;
   phone: string | null;
   date_of_birth: string | null;
@@ -232,6 +233,7 @@ export type Patient = {
 export type Appointment = {
   id: string;
   user_id: string | null;
+  owner_id: string;
   patient_id: string;
   starts_at: string;
   status: 'booked' | 'done' | 'no_show';
@@ -245,6 +247,7 @@ export type Appointment = {
 export type Treatment = {
   id: string;
   user_id: string | null;
+  owner_id: string;
   appointment_id: string;
   procedure: string;
   fee_cents: number;
@@ -266,11 +269,12 @@ function isMissingTableError(error: { code?: string; message?: string } | null):
 }
 
 export async function fetchPatients(): Promise<Patient[]> {
-  await requireClinicUser();
+  const ownerId = await requireClinicUser();
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('patients')
-    .select('id, user_id, full_name, phone, date_of_birth, file_path, created_at')
+    .select('id, user_id, owner_id, full_name, phone, date_of_birth, file_path, created_at')
+    .eq('owner_id', ownerId)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -286,12 +290,13 @@ export async function fetchPatients(): Promise<Patient[]> {
 }
 
 export async function fetchPatientById(id: string): Promise<Patient | null> {
-  await requireClinicUser();
+  const ownerId = await requireClinicUser();
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('patients')
-    .select('id, user_id, full_name, phone, date_of_birth, file_path, created_at')
+    .select('id, user_id, owner_id, full_name, phone, date_of_birth, file_path, created_at')
     .eq('id', id)
+    .eq('owner_id', ownerId)
     .maybeSingle();
 
   if (error) {
@@ -307,11 +312,12 @@ export async function fetchPatientById(id: string): Promise<Patient | null> {
 }
 
 export async function fetchAppointments(): Promise<Appointment[]> {
-  await requireClinicUser();
+  const ownerId = await requireClinicUser();
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('appointments')
-    .select('id, user_id, patient_id, starts_at, status, provider_type, provider_name, appointment_type, payment_method, created_at')
+    .select('id, user_id, owner_id, patient_id, starts_at, status, provider_type, provider_name, appointment_type, payment_method, created_at')
+    .eq('owner_id', ownerId)
     .order('starts_at', { ascending: false });
 
   if (error) {
@@ -333,11 +339,12 @@ export async function fetchAppointments(): Promise<Appointment[]> {
 }
 
 export async function fetchTreatments(): Promise<Treatment[]> {
-  await requireClinicUser();
+  const ownerId = await requireClinicUser();
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('treatments')
-    .select('id, user_id, appointment_id, procedure, fee_cents, created_at')
+    .select('id, user_id, owner_id, appointment_id, procedure, fee_cents, created_at')
+    .eq('owner_id', ownerId)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -359,12 +366,13 @@ export async function fetchTreatments(): Promise<Treatment[]> {
 }
 
 export async function fetchAppointmentById(id: string): Promise<Appointment | null> {
-  await requireClinicUser();
+  const ownerId = await requireClinicUser();
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('appointments')
-    .select('id, user_id, patient_id, starts_at, status, provider_type, provider_name, appointment_type, payment_method, created_at')
+    .select('id, user_id, owner_id, patient_id, starts_at, status, provider_type, provider_name, appointment_type, payment_method, created_at')
     .eq('id', id)
+    .eq('owner_id', ownerId)
     .maybeSingle();
 
   if (error) {
@@ -386,12 +394,13 @@ export async function fetchAppointmentById(id: string): Promise<Appointment | nu
 }
 
 export async function fetchTreatmentById(id: string): Promise<Treatment | null> {
-  await requireClinicUser();
+  const ownerId = await requireClinicUser();
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('treatments')
-    .select('id, user_id, appointment_id, procedure, fee_cents, created_at')
+    .select('id, user_id, owner_id, appointment_id, procedure, fee_cents, created_at')
     .eq('id', id)
+    .eq('owner_id', ownerId)
     .maybeSingle();
 
   if (error) {
@@ -426,16 +435,17 @@ export type ClinicSummary = {
 };
 
 export async function fetchClinicSummary(): Promise<ClinicSummary> {
-  await requireClinicUser();
+  const ownerId = await requireClinicUser();
   const supabase = createAdminClient();
 
   const [patientsResult, appointmentsResult, treatmentsResult, upcomingResult] = await Promise.all([
-    supabase.from('patients').select('id', { count: 'exact', head: true }),
-    supabase.from('appointments').select('id', { count: 'exact', head: true }),
-    supabase.from('treatments').select('id', { count: 'exact', head: true }),
+    supabase.from('patients').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId),
+    supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId),
+    supabase.from('treatments').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId),
     supabase
       .from('appointments')
       .select('id, starts_at, status, patient:patient_id(full_name, phone)')
+      .eq('owner_id', ownerId)
       .gte('starts_at', new Date().toISOString())
       .order('starts_at', { ascending: true })
       .limit(5),
@@ -481,11 +491,12 @@ export interface PatientsPerMonthRow {
 }
 
 export async function fetchPatientsPerMonth(): Promise<PatientsPerMonthRow[]> {
-  await requireClinicUser()
+  const ownerId = await requireClinicUser()
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('patients_per_month')
     .select('label, new_patients')
+    .eq('owner_id', ownerId)
     .order('month_start', { ascending: true })
 
   if (error) throw new Error(error.message)
@@ -493,11 +504,12 @@ export async function fetchPatientsPerMonth(): Promise<PatientsPerMonthRow[]> {
 }
 
 export async function fetchAppointmentStatusThisMonth(): Promise<StatusRow[]> {
-  await requireClinicUser()
+  const ownerId = await requireClinicUser()
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('appointment_status_this_month')
     .select('status, total')
+    .eq('owner_id', ownerId)
 
   if (error) throw new Error(error.message)
   return (data ?? []) as StatusRow[]

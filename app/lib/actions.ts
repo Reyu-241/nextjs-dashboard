@@ -153,7 +153,7 @@ export type PatientState = {
 };
 
 export async function createPatient(prevState: PatientState, formData: FormData) {
-  await requireClinicUser();
+  const ownerId = await requireClinicUser();
   const validated = PatientSchema.safeParse({
     full_name: formData.get('full_name'),
     phone: formData.get('phone'),
@@ -172,6 +172,7 @@ export async function createPatient(prevState: PatientState, formData: FormData)
     full_name,
     phone: phone || null,
     date_of_birth: date_of_birth || null,
+    owner_id: ownerId,
   });
   if (error) {
     console.error('Failed to create patient:', {
@@ -192,7 +193,7 @@ export async function updatePatient(
   prevState: PatientState,
   formData: FormData,
 ) {
-  await requireClinicUser();
+  const ownerId = await requireClinicUser();
   const validated = PatientSchema.safeParse({
     full_name: formData.get('full_name'),
     phone: formData.get('phone'),
@@ -207,14 +208,17 @@ export async function updatePatient(
   const { full_name, phone, date_of_birth } = validated.data;
 
   const supabase = createAdminClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('patients')
     .update({
       full_name,
       phone: phone || null,
       date_of_birth: date_of_birth || null,
     })
-    .eq('id', id);
+    .eq('id', id)
+    .eq('owner_id', ownerId)
+    .select('id')
+    .maybeSingle();
   if (error) {
     console.error('Failed to update patient:', {
       code: error.code,
@@ -224,15 +228,24 @@ export async function updatePatient(
     });
     return { message: `Database error ${error.code}: failed to update patient.` };
   }
+  if (!data) {
+    return { message: 'Patient not found or you do not have access to it.' };
+  }
 
   revalidatePath('/dashboard/patients');
   redirect('/dashboard/patients');
 }
 
 export async function deletePatient(id: string) {
-  await requireClinicUser();
+  const ownerId = await requireClinicUser();
   const supabase = createAdminClient();
-  const { error } = await supabase.from('patients').delete().eq('id', id);
+  const { data, error } = await supabase
+    .from('patients')
+    .delete()
+    .eq('id', id)
+    .eq('owner_id', ownerId)
+    .select('id')
+    .maybeSingle();
   if (error) {
     console.error('Failed to delete patient:', {
       code: error.code,
@@ -241,6 +254,9 @@ export async function deletePatient(id: string) {
       hint: error.hint,
     });
     throw new Error(`Database error ${error.code}: failed to delete patient.`);
+  }
+  if (!data) {
+    throw new Error('Patient not found or you do not have access to it.');
   }
   revalidatePath('/dashboard/patients');
 }
@@ -266,7 +282,7 @@ export async function createAppointment(
   prevState: AppointmentState,
   formData: FormData,
 ) {
-  await requireClinicUser();
+  const ownerId = await requireClinicUser();
   const validated = AppointmentSchema.safeParse({
     patient_id: formData.get('patient_id'),
     starts_at: formData.get('starts_at'),
@@ -281,11 +297,32 @@ export async function createAppointment(
   }
 
   const supabase = createAdminClient();
+  const { data: patient, error: patientError } = await supabase
+    .from('patients')
+    .select('id')
+    .eq('id', validated.data.patient_id)
+    .eq('owner_id', ownerId)
+    .maybeSingle();
+
+  if (patientError) {
+    console.error('Failed to verify appointment patient ownership:', {
+      code: patientError.code,
+      message: patientError.message,
+    });
+    return { message: `Database error ${patientError.code}: failed to verify patient.` };
+  }
+  if (!patient) {
+    return {
+      errors: { patient_id: ['Please select one of your patients.'] },
+      message: 'The selected patient is unavailable.',
+    };
+  }
+
   const { error } = await supabase.from('appointments').insert({
     patient_id: validated.data.patient_id,
     starts_at: validated.data.starts_at,
     status: validated.data.status,
-    user_id: null,
+    owner_id: ownerId,
   });
 
   if (error) {
@@ -307,7 +344,7 @@ export async function updateAppointment(
   prevState: AppointmentState,
   formData: FormData,
 ) {
-  await requireClinicUser();
+  const ownerId = await requireClinicUser();
   const validated = AppointmentSchema.safeParse({
     patient_id: formData.get('patient_id'),
     starts_at: formData.get('starts_at'),
@@ -322,14 +359,38 @@ export async function updateAppointment(
   }
 
   const supabase = createAdminClient();
-  const { error } = await supabase
+  const { data: patient, error: patientError } = await supabase
+    .from('patients')
+    .select('id')
+    .eq('id', validated.data.patient_id)
+    .eq('owner_id', ownerId)
+    .maybeSingle();
+
+  if (patientError) {
+    console.error('Failed to verify appointment patient ownership:', {
+      code: patientError.code,
+      message: patientError.message,
+    });
+    return { message: `Database error ${patientError.code}: failed to verify patient.` };
+  }
+  if (!patient) {
+    return {
+      errors: { patient_id: ['Please select one of your patients.'] },
+      message: 'The selected patient is unavailable.',
+    };
+  }
+
+  const { data, error } = await supabase
     .from('appointments')
     .update({
       patient_id: validated.data.patient_id,
       starts_at: validated.data.starts_at,
       status: validated.data.status,
     })
-    .eq('id', id);
+    .eq('id', id)
+    .eq('owner_id', ownerId)
+    .select('id')
+    .maybeSingle();
 
   if (error) {
     console.error('Failed to update appointment:', {
@@ -340,15 +401,24 @@ export async function updateAppointment(
     });
     return { message: `Database error ${error.code}: failed to update appointment.` };
   }
+  if (!data) {
+    return { message: 'Appointment not found or you do not have access to it.' };
+  }
 
   revalidatePath('/dashboard/appointments');
   redirect('/dashboard/appointments');
 }
 
 export async function deleteAppointment(id: string) {
-  await requireClinicUser();
+  const ownerId = await requireClinicUser();
   const supabase = createAdminClient();
-  const { error } = await supabase.from('appointments').delete().eq('id', id);
+  const { data, error } = await supabase
+    .from('appointments')
+    .delete()
+    .eq('id', id)
+    .eq('owner_id', ownerId)
+    .select('id')
+    .maybeSingle();
   if (error) {
     console.error('Failed to delete appointment:', {
       code: error.code,
@@ -357,6 +427,9 @@ export async function deleteAppointment(id: string) {
       hint: error.hint,
     });
     throw new Error(`Database error ${error.code}: failed to delete appointment.`);
+  }
+  if (!data) {
+    throw new Error('Appointment not found or you do not have access to it.');
   }
   revalidatePath('/dashboard/appointments');
 }
@@ -382,7 +455,7 @@ export async function createTreatment(
   prevState: TreatmentState,
   formData: FormData,
 ) {
-  await requireClinicUser();
+  const ownerId = await requireClinicUser();
   const validated = TreatmentSchema.safeParse({
     appointment_id: formData.get('appointment_id'),
     procedure: formData.get('procedure'),
@@ -397,11 +470,32 @@ export async function createTreatment(
   }
 
   const supabase = createAdminClient();
+  const { data: appointment, error: appointmentError } = await supabase
+    .from('appointments')
+    .select('id')
+    .eq('id', validated.data.appointment_id)
+    .eq('owner_id', ownerId)
+    .maybeSingle();
+
+  if (appointmentError) {
+    console.error('Failed to verify treatment appointment ownership:', {
+      code: appointmentError.code,
+      message: appointmentError.message,
+    });
+    return { message: `Database error ${appointmentError.code}: failed to verify appointment.` };
+  }
+  if (!appointment) {
+    return {
+      errors: { appointment_id: ['Please select one of your appointments.'] },
+      message: 'The selected appointment is unavailable.',
+    };
+  }
+
   const { error } = await supabase.from('treatments').insert({
     appointment_id: validated.data.appointment_id,
     procedure: validated.data.procedure,
     fee_cents: validated.data.fee_cents,
-    user_id: null,
+    owner_id: ownerId,
   });
 
   if (error) {
@@ -423,7 +517,7 @@ export async function updateTreatment(
   prevState: TreatmentState,
   formData: FormData,
 ) {
-  await requireClinicUser();
+  const ownerId = await requireClinicUser();
   const validated = TreatmentSchema.safeParse({
     appointment_id: formData.get('appointment_id'),
     procedure: formData.get('procedure'),
@@ -438,14 +532,38 @@ export async function updateTreatment(
   }
 
   const supabase = createAdminClient();
-  const { error } = await supabase
+  const { data: appointment, error: appointmentError } = await supabase
+    .from('appointments')
+    .select('id')
+    .eq('id', validated.data.appointment_id)
+    .eq('owner_id', ownerId)
+    .maybeSingle();
+
+  if (appointmentError) {
+    console.error('Failed to verify treatment appointment ownership:', {
+      code: appointmentError.code,
+      message: appointmentError.message,
+    });
+    return { message: `Database error ${appointmentError.code}: failed to verify appointment.` };
+  }
+  if (!appointment) {
+    return {
+      errors: { appointment_id: ['Please select one of your appointments.'] },
+      message: 'The selected appointment is unavailable.',
+    };
+  }
+
+  const { data, error } = await supabase
     .from('treatments')
     .update({
       appointment_id: validated.data.appointment_id,
       procedure: validated.data.procedure,
       fee_cents: validated.data.fee_cents,
     })
-    .eq('id', id);
+    .eq('id', id)
+    .eq('owner_id', ownerId)
+    .select('id')
+    .maybeSingle();
 
   if (error) {
     console.error('Failed to update treatment:', {
@@ -456,15 +574,24 @@ export async function updateTreatment(
     });
     return { message: `Database error ${error.code}: failed to update treatment.` };
   }
+  if (!data) {
+    return { message: 'Treatment not found or you do not have access to it.' };
+  }
 
   revalidatePath('/dashboard/treatments');
   redirect('/dashboard/treatments');
 }
 
 export async function deleteTreatment(id: string) {
-  await requireClinicUser();
+  const ownerId = await requireClinicUser();
   const supabase = createAdminClient();
-  const { error } = await supabase.from('treatments').delete().eq('id', id);
+  const { data, error } = await supabase
+    .from('treatments')
+    .delete()
+    .eq('id', id)
+    .eq('owner_id', ownerId)
+    .select('id')
+    .maybeSingle();
   if (error) {
     console.error('Failed to delete treatment:', {
       code: error.code,
@@ -474,17 +601,37 @@ export async function deleteTreatment(id: string) {
     });
     throw new Error(`Database error ${error.code}: failed to delete treatment.`);
   }
+  if (!data) {
+    throw new Error('Treatment not found or you do not have access to it.');
+  }
   revalidatePath('/dashboard/treatments');
 }
 
 export async function uploadPatientFile(patientId: string, formData: FormData) {
-  await requireClinicUser();
+  const ownerId = await requireClinicUser();
   const file = formData.get('file');
   if (!(file instanceof File) || file.size === 0) {
     throw new Error('Choose a non-empty file to upload.');
   }
 
   const supabase = createAdminClient();
+  const { data: patient, error: patientError } = await supabase
+    .from('patients')
+    .select('id')
+    .eq('id', patientId)
+    .eq('owner_id', ownerId)
+    .maybeSingle();
+  if (patientError) {
+    console.error('Failed to verify patient file ownership:', {
+      code: patientError.code,
+      message: patientError.message,
+    });
+    throw new Error(`Database error ${patientError.code}: failed to verify patient.`);
+  }
+  if (!patient) {
+    throw new Error('Patient not found or you do not have access to it.');
+  }
+
   const path = `${patientId}/${crypto.randomUUID()}-${file.name}`;
   const { data, error } = await supabase.storage
     .from('patient-files')
@@ -500,7 +647,8 @@ export async function uploadPatientFile(patientId: string, formData: FormData) {
   const { error: updateError } = await supabase
     .from('patients')
     .update({ file_path: data.path })
-    .eq('id', patientId);
+    .eq('id', patientId)
+    .eq('owner_id', ownerId);
   if (updateError) {
     console.error('Failed to save patient file path:', {
       code: updateError.code,
@@ -615,12 +763,26 @@ export async function bookAppointment(
   }
 
   const supabase = createAdminClient();
+  const { data: clinicOwner, error: ownerError } = await supabase
+    .from('clinic_data_owner')
+    .select('owner_id')
+    .eq('singleton', true)
+    .maybeSingle();
+  if (ownerError) {
+    console.error('Failed to fetch public booking owner:', {
+      code: ownerError.code,
+      message: ownerError.message,
+    });
+    return { message: `Unable to book this appointment (database error ${ownerError.code}).` };
+  }
+
   const { data: patient, error: patientError } = await supabase
     .from('patients')
     .insert({
       full_name: validated.data.full_name,
       phone: validated.data.phone,
       date_of_birth: validated.data.date_of_birth || null,
+      owner_id: clinicOwner?.owner_id ?? null,
     })
     .select('id')
     .single();
@@ -641,6 +803,7 @@ export async function bookAppointment(
     starts_at: startsAt,
     status: 'booked',
     user_id: null,
+    owner_id: clinicOwner?.owner_id ?? null,
     provider_type: validated.data.provider_type,
     provider_name: validated.data.provider_name,
     appointment_type: validated.data.appointment_type,
